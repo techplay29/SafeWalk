@@ -1,30 +1,28 @@
-import { collection, doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { db } from '../firebaseConfig';
+
 export default function FamilyScreen() {
   const [members, setMembers] = useState([]);
 
   useEffect(() => {
-    // Add YOUR own heartbeat to Firebase
-    const myHeartbeat = async () => {
-      await setDoc(doc(db, 'family', 'Naitika'), {
-        name: 'Naitika',
-        online: true,
-        battery: '85%',
-        lastSeen: serverTimestamp(),
-      });
-    };
-    myHeartbeat();
-
-    // Listen to ALL family members in real time
     const unsub = onSnapshot(collection(db, 'family'), (snapshot) => {
-      const data = snapshot.docs.map(doc => doc.data());
+      const data = snapshot.docs.map(doc => {
+        const d = doc.data();
+        return {
+          id: doc.id,
+          name: d.name || doc.id,
+          battery: d.battery || 'Unknown',
+          online: d.online === true,
+        };
+      });
       setMembers(data);
     });
-
     return () => unsub();
   }, []);
+
+  const onlineCount = members.filter(m => m.online).length;
 
   return (
     <ScrollView style={styles.container}>
@@ -37,9 +35,7 @@ export default function FamilyScreen() {
         <View style={styles.headerRow}>
           <Text style={styles.sectionLabel}>ACTIVE DEVICES</Text>
           <View style={styles.countBadge}>
-            <Text style={styles.countTxt}>
-              {members.filter(m => m.online).length} of {members.length} online
-            </Text>
+            <Text style={styles.countTxt}>{onlineCount} of {members.length} online</Text>
           </View>
         </View>
 
@@ -51,24 +47,21 @@ export default function FamilyScreen() {
         ) : (
           <View style={styles.card}>
             {members.map((m, i) => (
-              <View key={m.name} style={[styles.memberRow, i < members.length - 1 && styles.borderBottom]}>
+              <View key={m.id} style={[styles.memberRow, i < members.length - 1 && styles.borderBottom]}>
                 <View style={[styles.avatar, { backgroundColor: m.online ? '#fde8ed' : '#f5f5f5' }]}>
                   <Text style={{ fontSize: 13, color: m.online ? '#9C3B4A' : '#aaa' }}>
-                    {m.name ? m.name[0] : '?'}
+                    {m.name[0].toUpperCase()}
                   </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.memberName}>{m.name}</Text>
                   <Text style={styles.memberSub}>🔋 {m.battery}</Text>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <View style={styles.statusRow}>
-                    <View style={[styles.dot, { backgroundColor: m.online ? '#4CAF50' : '#ccc' }]} />
-                    <Text style={[styles.statusTxt, { color: m.online ? '#2e7d32' : '#aaa' }]}>
-                      {m.online ? 'Online' : 'Offline'}
-                    </Text>
-                  </View>
-                  <Text style={styles.battTxt}>🔋 {m.battery}</Text>
+                <View style={styles.statusRow}>
+                  <View style={[styles.dot, { backgroundColor: m.online ? '#4CAF50' : '#ccc' }]} />
+                  <Text style={[styles.statusTxt, { color: m.online ? '#2e7d32' : '#aaa' }]}>
+                    {m.online ? 'Online' : 'Offline'}
+                  </Text>
                 </View>
               </View>
             ))}
@@ -80,11 +73,18 @@ export default function FamilyScreen() {
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>ℹ️ How this works</Text>
           <Text style={styles.infoTxt}>
-            Each family member's SafeWalk app sends a check-in every 2 minutes.
-            Green dot means their phone is on and will receive your SOS alert.
+            Each family member's SafeWalk app sends a check-in every 2 minutes. A green dot means their phone is on and will receive your SOS alert.
           </Text>
         </View>
       </View>
+
+      {members.filter(m => !m.online).map(m => (
+        <View key={m.id} style={styles.section}>
+          <View style={styles.warningCard}>
+            <Text style={styles.warningTxt}>⚠️ {m.name} is offline — SOS may not reach them</Text>
+          </View>
+        </View>
+      ))}
 
       <View style={{ height: 30 }} />
     </ScrollView>
@@ -113,8 +113,9 @@ const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   dot: { width: 7, height: 7, borderRadius: 4 },
   statusTxt: { fontSize: 11, fontWeight: '500' },
-  battTxt: { fontSize: 10, color: '#888', marginTop: 2 },
   infoCard: { backgroundColor: '#fff', borderRadius: 12, padding: 14, borderWidth: 0.5, borderColor: '#e0ddd8' },
   infoTitle: { fontSize: 13, fontWeight: '500', color: '#1a1a1a', marginBottom: 6 },
   infoTxt: { fontSize: 12, color: '#666', lineHeight: 18 },
+  warningCard: { backgroundColor: '#fff8e1', borderRadius: 12, padding: 12, borderWidth: 0.5, borderColor: '#EF9F27' },
+  warningTxt: { fontSize: 12, color: '#854F0B', fontWeight: '500' },
 });
